@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/golang/glog"
@@ -10,7 +11,9 @@ import (
 
 var (
 	TokenPath     string
+	Token         []byte
 	HubSecretPath string
+	HubSecret     []byte
 
 	ServerPort int
 	BasePath   string
@@ -32,9 +35,23 @@ func main() {
 	// Log the configuration
 	logConfig()
 
+	// Read in the token
+	var err error
+	Token, err = ioutil.ReadFile(TokenPath)
+	if err != nil {
+		// glog.Fatalf("Failed to read token: %v", err)
+	}
+
+	// Read in the hub secret
+	HubSecret, err = ioutil.ReadFile(HubSecretPath)
+	if err != nil {
+		// glog.Fatalf("Failed to read hub secret: %v", err)
+	}
+
 	// Start the server
+	http.HandleFunc(fmt.Sprintf("%s/debug/status", BasePath), debug)
 	http.HandleFunc(fmt.Sprintf("%s/push", BasePath), push)
-	err := http.ListenAndServe(fmt.Sprintf(":%d", ServerPort), nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", ServerPort), nil)
 	glog.Fatalf("Error while serving: %v", err)
 }
 
@@ -45,6 +62,13 @@ func logConfig() {
 	glog.Infof("BasePath: %s", BasePath)
 }
 
+func debug(w http.ResponseWriter, req *http.Request) {
+	glog.Infof("Handling debug request")
+	fmt.Fprintf(w, "OK")
+}
+
 func push(w http.ResponseWriter, req *http.Request) {
 	glog.Infof("Handling onpush request")
+	glog.Infof("Request: %v", req)
+	fmt.Fprintf(w, "OK")
 }

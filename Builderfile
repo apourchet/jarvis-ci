@@ -1,0 +1,3 @@
+FROM golang:1.7.1
+
+WORKDIR /go/src/github.com/apourchet/jarvis-ci 
