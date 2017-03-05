@@ -7,6 +7,18 @@
 			"path": "github.com/golang/glog",
 			"revision": "23def4e6c14b4da8ac2ed8007337bc5eb5007998",
 			"revisionTime": "2016-01-25T20:49:56Z"
+		},
+		{
+			"checksumSHA1": "WdM60sCmqu0QEzqM+Ni34Dauu70=",
+			"path": "github.com/google/go-github/github",
+			"revision": "d9c241b9c95cbd5996418f70223328a37cfb9bb3",
+			"revisionTime": "2017-03-04T19:18:57Z"
+		},
+		{
+			"checksumSHA1": "p3IB18uJRs4dL2K5yx24MrLYE9A=",
+			"path": "github.com/google/go-querystring/query",
+			"revision": "53e6ce116135b80d037921a7fdd5138cf32d7a8a",
+			"revisionTime": "2017-01-11T10:11:55Z"
 		}
 	],
 	"rootPath": "github.com/apourchet/jarvis-ci"
