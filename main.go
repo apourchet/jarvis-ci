@@ -5,43 +5,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os/exec"
 
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 )
 
-var (
-	TokenPath     string
-	Token         []byte
-	HubSecretPath string
-	HubSecret     []byte
-
-	RepoFullName string
-
-	BasePath   string
-	ServerPort int
-)
-
-func init() {
-	flag.StringVar(&TokenPath, "t", "/jarvis-ci/token", "The API token for authenticating with GitHub")
-	flag.StringVar(&HubSecretPath, "s", "/jarvis-ci/hubsecret", "The secret key for validating a request from GitHub")
-	flag.StringVar(&RepoFullName, "repo", "", "The full name of the repository we are watching from GitHub")
-
-	flag.StringVar(&BasePath, "b", "/jarvis-ci", "The root path of the webhooks Jarvis will make available to GitHub")
-	flag.IntVar(&ServerPort, "p", 8080, "The port that Jarvis should listen for webhooks on")
-
-	flag.Set("logtostderr", "true")
-}
-
 func main() {
 	flag.Parse()
 
-	// Log the configuration
-	logConfig()
+	var err error
 
 	// Read in the token
-	var err error
 	Token, err = ioutil.ReadFile(TokenPath)
 	if err != nil {
 		glog.Warningf("Failed to read token: %v", err)
@@ -54,20 +28,14 @@ func main() {
 		HubSecret = []byte("mysecret")
 	}
 
+	// Log the configuration
+	logConfig()
+
 	// Start the server
 	http.HandleFunc(fmt.Sprintf("%s/debug/status", BasePath), debug)
 	http.HandleFunc(fmt.Sprintf("%s/hook", BasePath), hook)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", ServerPort), nil)
 	glog.Fatalf("Error while serving: %v", err)
-}
-
-func logConfig() {
-	glog.Infof("Server port: %d", ServerPort)
-	glog.Infof("Base path: %s", BasePath)
-
-	glog.Infof("Token path: %s", TokenPath)
-	glog.Infof("Hub secret path: %s", HubSecretPath)
-	glog.Infof("Repository full name: %s", RepoFullName)
 }
 
 func debug(w http.ResponseWriter, req *http.Request) {
@@ -106,7 +74,6 @@ func hook(w http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		glog.Errorf("Failed to handle github hook: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	// Done
@@ -129,34 +96,47 @@ func handlePushEvent(event *github.PushEvent) error {
 		return fmt.Errorf("Missing PushEvent head commit ID")
 	}
 
-	// Check the full name for security
+	head := *event.HeadCommit.ID
 	fullName := *event.Repo.FullName
-	if RepoFullName != "" && fullName != RepoFullName {
+
+	// Check the full name for security
+	if RepoFullName != "ANY" && fullName != RepoFullName {
 		return fmt.Errorf("Will not handle requests for this repository: %s", fullName)
+	}
+
+	err := NewGithubClient().PostStatus(fullName, head, "pending")
+	if err != nil {
+		glog.Warningf("Failed to create pending status: %v", err)
 	}
 
 	// Construct the clone URL
 	prefix := fmt.Sprintf("https://%s@github.com", Token)
 	cloneURL := fmt.Sprintf("%s/%s.git", prefix, fullName)
+	cloneDir := getCloneDir()
 
 	// Clone repository
-	glog.Infof("Cloning from %s", cloneURL)
-	err := exec.Command("git", "clone", cloneURL, "/tmp/clone").Run() // TODO cycle names
+	err = CloneRepo(cloneDir, cloneURL)
 	if err != nil {
-		glog.Errorf("Failed to clone directory: %s", cloneURL)
-		return nil
+		NewGithubClient().PostStatus(fullName, head, "failure")
+		return err
+	}
+
+	// Checkout head commit
+	err = CheckoutHead(cloneDir, head)
+	if err != nil {
+		NewGithubClient().PostStatus(fullName, head, "failure")
+		return err
 	}
 
 	// Execute test command
-	cmd := exec.Command("make", "test")
-	cmd.Dir = "/tmp/clone"
-	out, err := cmd.CombinedOutput()
+	outputFile := getOutputFile()
+	out, err := DoTest(cloneDir)
+	WriteOutput(out, outputFile)
 	if err != nil {
-		glog.Errorf("Test command failed: %v", err)
-		glog.Errorf("Combined output: %s", out)
-		return nil
+		NewGithubClient().PostStatus(fullName, head, "failure")
+		return fmt.Errorf("Failed test command: %v", err)
 	}
 
-	// TODO post status
+	NewGithubClient().PostStatus(fullName, head, "success")
 	return nil
 }
