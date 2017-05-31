@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
@@ -16,6 +17,8 @@ type EventHandler interface {
 type handler struct {
 	client   *GithubClient
 	reponame string
+
+	MasterRef string
 }
 
 var DefaultEventHandler EventHandler = &handler{}
@@ -24,6 +27,7 @@ func NewEventHandler(reponame string, client *GithubClient) *handler {
 	h := &handler{}
 	h.client = client
 	h.reponame = reponame
+	h.MasterRef = "refs/heads/master"
 	return h
 }
 
@@ -33,13 +37,12 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 		return err
 	}
 
-	head := *event.HeadCommit.ID
-	fullName := *event.Repo.FullName
-
+	head, fullName := *event.HeadCommit.ID, *event.Repo.FullName
 	if h.reponame != REPONAME_ANY && fullName != h.reponame {
 		return fmt.Errorf("Will not handle requests for this repository: %s", fullName)
 	}
 
+	// TODO: REMOVE THIS
 	content, _ := json.Marshal(event)
 	fmt.Println(string(content))
 
@@ -83,6 +86,26 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 	}
 
 	h.client.PostStatus(fullName, head, "success")
+
+	// Check if the ref is the master ref
+	if h.MasterRef != event.GetRef() {
+		return nil
+	}
+
+	// Parse the head commit message to find make targets
+	msg := event.HeadCommit.GetMessage()
+	targets := []string{}
+	for _, line := range strings.Split(msg, "\n") {
+		if strings.HasPrefix(line, "JARVIS: ") {
+			targetstring := strings.TrimPrefix(line, "JARVIS: ")
+			targets = strings.Split(targetstring, " ")
+		}
+	}
+
+	for _, target := range targets {
+		out, err := runner.Run("make", target)
+		fmt.Println(string(out), err)
+	}
 	return nil
 }
 
