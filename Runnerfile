@@ -1,8 +1,0 @@
-FROM alpine:3.5
-
-RUN apk add --no-cache --update git make docker openrc
-RUN rc-update add docker boot
-
-ADD ./bin/jarvis-ci /jarvis-ci
-
-ENTRYPOINT ["/jarvis-ci"]

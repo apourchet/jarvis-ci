@@ -7,12 +7,8 @@ import (
 )
 
 var (
-	Debug bool
-
 	TokenPath     string
-	Token         []byte
 	HubSecretPath string
-	HubSecret     []byte
 
 	RepoFullName string
 
@@ -23,11 +19,14 @@ var (
 	ServerPort int
 )
 
+const (
+	REPONAME_ANY = "ANY"
+)
+
 func init() {
-	flag.BoolVar(&Debug, "d", true, "Debug mode")
 	flag.StringVar(&TokenPath, "t", "/jarvis-ci/token", "The API token for authenticating with GitHub")
 	flag.StringVar(&HubSecretPath, "s", "/jarvis-ci/hubsecret", "The secret key for validating a request from GitHub")
-	flag.StringVar(&RepoFullName, "repo", "ANY", "The full name of the repository we are watching from GitHub")
+	flag.StringVar(&RepoFullName, "repo", REPONAME_ANY, "The full name of the repository we are watching from GitHub")
 
 	flag.IntVar(&MaxClones, "max-clones", 10, "Maximum number of clones to keep")
 	flag.IntVar(&MaxOutputs, "max-outputs", 10, "Maximum number of outputs to keep")
@@ -38,16 +37,11 @@ func init() {
 	flag.Set("logtostderr", "true")
 }
 
-func logConfig() {
+func printFlags() {
 	glog.Infof("Server port: %d", ServerPort)
 	glog.Infof("Base path: %s", BasePath)
 
 	glog.Infof("Token path: %s", TokenPath)
 	glog.Infof("Hub secret path: %s", HubSecretPath)
 	glog.Infof("Repository full name: %s", RepoFullName)
-
-	if Debug {
-		glog.Infof("Token: '%s'", Token)
-		glog.Infof("Hub secret: '%s'", HubSecret)
-	}
 }

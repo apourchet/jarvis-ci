@@ -14,13 +14,14 @@ import (
 )
 
 type GithubClient struct {
+	token string
 	*github.Client
 }
 
-func NewGithubClient() *GithubClient {
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(Token)})
+func NewGithubClient(token string) *GithubClient {
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	client := github.NewClient(oauth2.NewClient(context.Background(), ts))
-	return &GithubClient{client}
+	return &GithubClient{token, client}
 }
 
 func (c *GithubClient) PostStatus(fullName, head, status string) error {
@@ -43,4 +44,11 @@ func (c *GithubClient) PostStatus(fullName, head, status string) error {
 
 	glog.Infof("Successfully set status of %s/%s to %s", fullName, head, status)
 	return nil
+}
+
+func (c *GithubClient) BaseURL() string {
+	if len(c.token) == 0 {
+		return fmt.Sprintf("https://github.com")
+	}
+	return fmt.Sprintf("https://%s@github.com", c.token)
 }
