@@ -68,21 +68,22 @@ func hook(hubscrt []byte, eventHandler EventHandler) http.HandlerFunc {
 			return
 		}
 
-		// Switch on its type
-		switch event := event.(type) {
-		case *github.PingEvent:
-			err = eventHandler.OnPingEvent(event)
-		case *github.PushEvent:
-			err = eventHandler.OnPushEvent(event)
-		}
+		go func() {
+			switch event := event.(type) {
+			case *github.PingEvent:
+				err = eventHandler.OnPingEvent(event)
+			case *github.PushEvent:
+				err = eventHandler.OnPushEvent(event)
+			}
 
-		// If there is an error, dont return anything in response
-		if err != nil {
-			glog.Errorf("Failed to handle github hook: %v", err)
-			return
-		}
+			// If there is an error, log it
+			if err != nil {
+				glog.Errorf("Failed to handle github hook: %v", err)
+				return
+			}
+		}()
 
-		// Done
+		// Hook handled successfully
 		fmt.Fprintf(w, "OK")
 	}
 }

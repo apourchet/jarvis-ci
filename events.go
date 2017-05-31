@@ -57,6 +57,7 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 
 	// Get a new job runner
 	runner := NewRunner()
+	defer runner.Cleanup()
 
 	// Clone repository
 	err = runner.CloneRepo(cloneURL, event.GetRef())
@@ -73,16 +74,14 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 	}
 
 	// Execute test command
-	outputFile := getOutputFile()
 	out, err := runner.Run("make", "jarvis-ci-test")
-
-	// Write the output anyway
-	writeOutput(out, outputFile)
+	glog.Infof("Test result: %v | %v", string(out), err)
 
 	// Handle the error now
 	if err != nil {
 		h.client.PostStatus(fullName, head, "failure")
-		return fmt.Errorf("Failed test command: %v", err)
+		glog.Infof("Failed jarvis-ci-test: %v", err)
+		return nil
 	}
 
 	h.client.PostStatus(fullName, head, "success")
@@ -104,7 +103,11 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 
 	for _, target := range targets {
 		out, err := runner.Run("make", target)
-		fmt.Println(string(out), err)
+		if err != nil {
+			glog.Infof("Failed %s: %s | %v", target, string(out), err)
+		} else {
+			glog.Infof("Success %s: %s", target, string(out))
+		}
 	}
 	return nil
 }

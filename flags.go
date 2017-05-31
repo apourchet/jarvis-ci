@@ -12,7 +12,6 @@ var (
 
 	RepoFullName string
 
-	MaxClones  int
 	MaxOutputs int
 
 	BasePath   string
@@ -28,7 +27,6 @@ func init() {
 	flag.StringVar(&HubSecretPath, "s", "/jarvis-ci/hubsecret", "The secret key for validating a request from GitHub")
 	flag.StringVar(&RepoFullName, "repo", REPONAME_ANY, "The full name of the repository we are watching from GitHub")
 
-	flag.IntVar(&MaxClones, "max-clones", 10, "Maximum number of clones to keep")
 	flag.IntVar(&MaxOutputs, "max-outputs", 10, "Maximum number of outputs to keep")
 
 	flag.StringVar(&BasePath, "b", "/jarvis-ci", "The root path of the webhooks Jarvis will make available to GitHub")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/golang/glog"
@@ -18,7 +19,7 @@ func NewRunner() Runner {
 }
 
 func (r Runner) CloneRepo(cloneURL string, ref string) error {
-	glog.Infof("Cloning from %s at %s into %s", cloneURL, ref, r.clonedir)
+	glog.Infof("Cloning from %s into %s", ref, r.clonedir)
 	err := exec.Command("git", "clone", cloneURL, r.clonedir, "--depth", "1").Run()
 	if err != nil {
 		return fmt.Errorf("Failed to clone directory %s into %s: %v", cloneURL, r.clonedir, err)
@@ -58,4 +59,11 @@ func (r Runner) Run(program string, args ...string) ([]byte, error) {
 	cmd := exec.Command(program, args...)
 	cmd.Dir = r.clonedir
 	return cmd.CombinedOutput()
+}
+
+func (r Runner) Cleanup() {
+	err := os.Remove(r.clonedir)
+	if err != nil {
+		glog.Errorf("Failed to cleanup runner %v: %v", r, err)
+	}
 }
