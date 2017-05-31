@@ -17,11 +17,27 @@ func NewRunner() Runner {
 	return runner
 }
 
-func (r Runner) CloneRepo(cloneURL string) error {
-	glog.Infof("Cloning from %s into %s", cloneURL, r.clonedir)
-	err := exec.Command("git", "clone", cloneURL, r.clonedir).Run()
+func (r Runner) CloneRepo(cloneURL string, ref string) error {
+	glog.Infof("Cloning from %s at %s into %s", cloneURL, ref, r.clonedir)
+	err := exec.Command("git", "clone", cloneURL, r.clonedir, "--depth", "1").Run()
 	if err != nil {
 		return fmt.Errorf("Failed to clone directory %s into %s: %v", cloneURL, r.clonedir, err)
+	}
+
+	// Fetch the ref
+	cmd := exec.Command("git", "fetch", "origin", ref, "--depth", "1")
+	cmd.Dir = r.clonedir
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("Failed to fetch ref %s: %v", ref, err)
+	}
+
+	// Checkout the fetched head
+	cmd = exec.Command("git", "checkout", "FETCH_HEAD")
+	cmd.Dir = r.clonedir
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("Failed to checkout FETCH_HEAD: %v", err)
 	}
 	return nil
 }

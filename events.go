@@ -59,7 +59,7 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 	runner := NewRunner()
 
 	// Clone repository
-	err = runner.CloneRepo(cloneURL)
+	err = runner.CloneRepo(cloneURL, event.GetRef())
 	if err != nil {
 		h.client.PostStatus(fullName, head, "failure")
 		return err
