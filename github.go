@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"context"
 
@@ -19,6 +20,7 @@ type GithubClient struct {
 }
 
 func NewGithubClient(token string) *GithubClient {
+	token = strings.Trim(token, "\n ")
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	client := github.NewClient(oauth2.NewClient(context.Background(), ts))
 	return &GithubClient{token, client}
