@@ -5,10 +5,29 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 )
+
+var (
+	TokenPath     string
+	HubSecretPath string
+	BasePath      string
+	OutputURI     string
+	ServerPort    int
+)
+
+func init() {
+	flag.StringVar(&TokenPath, "t", "/jarvis-ci/token", "The API token for authenticating with GitHub")
+	flag.StringVar(&HubSecretPath, "s", "/jarvis-ci/hubsecret", "The secret key for validating a request from GitHub")
+	flag.StringVar(&BasePath, "b", "/jarvis-ci", "The root path of the webhooks Jarvis will make available to GitHub")
+	flag.StringVar(&OutputURI, "output-uri", "https://jarvisci.org/outputs/", "The base uri of a build output")
+	flag.IntVar(&ServerPort, "p", 8080, "The port that Jarvis should listen for webhooks on")
+	flag.Set("logtostderr", "true")
+}
 
 func main() {
 	flag.Parse()
@@ -30,30 +49,42 @@ func main() {
 	printFlags()
 
 	// Create the github client
-	client := NewGithubClient(string(token))
+	client := NewGithubClient(string(token), OutputURI)
+
+	// Create the output handler
+	outputhandler := DefaultOutputHandler()
 
 	// Create the event handler
-	eventHandler := NewEventHandler(RepoFullName, client)
+	eventhandler := NewEventHandler(RepoFullName, client, outputhandler)
 
 	// Start the server
-	http.HandleFunc(fmt.Sprintf("%s/debug/status", BasePath), debug)
-	http.HandleFunc(fmt.Sprintf("%s/hook", BasePath), hook(hubSecret, eventHandler))
+	http.HandleFunc(path.Join(BasePath, "/debug/status"), debug)
+	http.HandleFunc(path.Join(BasePath, "/hook"), hook(hubSecret, eventhandler))
+	http.HandleFunc(path.Join(BasePath, "/outputs")+"/", outputfunc(outputhandler))
 	err = http.ListenAndServe(fmt.Sprintf(":%d", ServerPort), nil)
 	glog.Fatalf("Error while serving: %v", err)
 }
 
-func debug(w http.ResponseWriter, req *http.Request) {
-	glog.Infof("Handling debug request")
-	fmt.Fprintf(w, "OK")
+func outputfunc(outputhandler OutputHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		glog.Infof("Handling output request: %s", req.URL.Path)
+		jobid := strings.TrimPrefix(req.URL.Path, "/outputs/")
+		out := outputhandler.GetOutput(jobid)
+		if out != "" {
+			fmt.Fprintf(w, out)
+		} else {
+			fmt.Fprintf(w, "No output found for jobid '%s'.", jobid)
+		}
+	}
 }
 
-func hook(hubscrt []byte, eventHandler EventHandler) http.HandlerFunc {
+func hook(hubscrt []byte, eventhandler EventHandler) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		glog.Infof("Handling hook request")
 		glog.Infof("Request: %v", req)
 
-		payload, err := github.ValidatePayload(req, hubscrt)
 		// Verify that it's coming from github
+		payload, err := github.ValidatePayload(req, hubscrt)
 		if err != nil {
 			glog.Errorf("Failed to validate github hook payload: %v", err)
 			w.WriteHeader(http.StatusUnauthorized)
@@ -68,12 +99,16 @@ func hook(hubscrt []byte, eventHandler EventHandler) http.HandlerFunc {
 			return
 		}
 
+		// Hook handled successfully
+		fmt.Fprintf(w, "OK")
+
+		// Process the event in the background
 		go func() {
 			switch event := event.(type) {
 			case *github.PingEvent:
-				err = eventHandler.OnPingEvent(event)
+				err = eventhandler.OnPingEvent(event)
 			case *github.PushEvent:
-				err = eventHandler.OnPushEvent(event)
+				err = eventhandler.OnPushEvent(event)
 			}
 
 			// If there is an error, log it
@@ -82,8 +117,10 @@ func hook(hubscrt []byte, eventHandler EventHandler) http.HandlerFunc {
 				return
 			}
 		}()
-
-		// Hook handled successfully
-		fmt.Fprintf(w, "OK")
 	}
+}
+
+func debug(w http.ResponseWriter, req *http.Request) {
+	glog.Infof("Handling debug request")
+	fmt.Fprintf(w, "OK")
 }

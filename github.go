@@ -15,22 +15,28 @@ import (
 )
 
 type GithubClient struct {
-	token string
+	token   string
+	baseurl string
 	*github.Client
 }
 
-func NewGithubClient(token string) *GithubClient {
+func NewGithubClient(token string, baseurl string) *GithubClient {
 	token = strings.Trim(token, "\n ")
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	client := github.NewClient(oauth2.NewClient(context.Background(), ts))
-	return &GithubClient{token, client}
+	return &GithubClient{token, baseurl, client}
 }
 
-func (c *GithubClient) PostStatus(fullName, head, status string) error {
+func (c *GithubClient) PostStatus(fullName, head, status string, jobid string) error {
 	// Create request
 	url := fmt.Sprintf("https://api.github.com/repos/%s/statuses/%s", fullName, head)
+
+	// Create the payload
 	data := map[string]string{"state": status, "context": "jarvis-ci", "description": "Jarvis-CI testing"}
+	data["target_url"] = c.baseurl + jobid
 	dataString, _ := json.Marshal(data)
+
+	// Make the request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(dataString))
 	if err != nil {
 		return fmt.Errorf("Failed to create status creation request: %v", err)
@@ -44,7 +50,7 @@ func (c *GithubClient) PostStatus(fullName, head, status string) error {
 		return fmt.Errorf("Failed to post pending status, bad status code: %s", resp.StatusCode)
 	}
 
-	glog.Infof("Successfully set status of %s/%s to %s", fullName, head, status)
+	glog.Infof("Successfully set status of %s/%s to %s (link: %s)", fullName, head, status, data["target_url"])
 	return nil
 }
 

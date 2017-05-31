@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"strings"
 
@@ -14,24 +15,40 @@ type EventHandler interface {
 	OnPingEvent(event *github.PingEvent) error
 }
 
-type handler struct {
-	client   *GithubClient
-	reponame string
+type eventHandler struct {
+	client        *GithubClient
+	reponame      string
+	outputhandler OutputHandler
 
 	MasterRef string
 }
 
-var DefaultEventHandler EventHandler = &handler{}
+const (
+	REPONAME_ANY = "ANY"
+)
 
-func NewEventHandler(reponame string, client *GithubClient) *handler {
-	h := &handler{}
+var (
+	RepoFullName string
+	MasterRef    string
+)
+
+var _ EventHandler = &eventHandler{}
+
+func init() {
+	flag.StringVar(&RepoFullName, "repo", REPONAME_ANY, "The full name of the repository we are watching from GitHub")
+	flag.StringVar(&MasterRef, "master-ref", "refs/heads/master", "The ref with post-commit targets. Defaults to refs/heads/master")
+}
+
+func NewEventHandler(reponame string, client *GithubClient, outputhandler OutputHandler) *eventHandler {
+	h := &eventHandler{}
 	h.client = client
 	h.reponame = reponame
-	h.MasterRef = "refs/heads/master"
+	h.outputhandler = outputhandler
+	h.MasterRef = MasterRef
 	return h
 }
 
-func (h *handler) OnPushEvent(event *github.PushEvent) error {
+func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 	glog.Infof("Received push event")
 	if err := checkPushEvent(event); err != nil {
 		return err
@@ -46,7 +63,11 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 	content, _ := json.Marshal(event)
 	fmt.Println(string(content))
 
-	err := h.client.PostStatus(fullName, head, "pending")
+	// Get a new job runner
+	runner := NewRunner()
+	defer runner.Cleanup()
+
+	err := h.client.PostStatus(fullName, head, "pending", head)
 	if err != nil {
 		glog.Warningf("Failed to create pending status: %v", err)
 	}
@@ -55,36 +76,35 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 	prefix := h.client.BaseURL()
 	cloneURL := fmt.Sprintf("%s/%s.git", prefix, fullName)
 
-	// Get a new job runner
-	runner := NewRunner()
-	defer runner.Cleanup()
-
 	// Clone repository
 	err = runner.CloneRepo(cloneURL, event.GetRef())
 	if err != nil {
-		h.client.PostStatus(fullName, head, "failure")
+		h.outputhandler.AddOutput(head, "Failed to clone repo: %v", err)
+		h.client.PostStatus(fullName, head, "failure", head)
 		return err
 	}
 
 	// Checkout head commit
 	err = runner.Checkout(head)
 	if err != nil {
-		h.client.PostStatus(fullName, head, "failure")
+		h.client.PostStatus(fullName, head, "failure", head)
+		h.outputhandler.AddOutput(head, "Failed to checkout head: %v", err)
 		return err
 	}
 
 	// Execute test command
 	out, err := runner.Run("make", "jarvis-ci-test")
 	glog.Infof("Test result: %v | %v", string(out), err)
+	h.outputhandler.AddOutput(head, "TARGET: jarvis-ci-test\n-------\n%v\n-------\n%v\n=======\n", string(out), err)
 
 	// Handle the error now
 	if err != nil {
-		h.client.PostStatus(fullName, head, "failure")
+		h.client.PostStatus(fullName, head, "failure", head)
 		glog.Infof("Failed jarvis-ci-test: %v", err)
 		return nil
 	}
 
-	h.client.PostStatus(fullName, head, "success")
+	h.client.PostStatus(fullName, head, "success", head)
 
 	// Check if the ref is the master ref
 	if h.MasterRef != event.GetRef() {
@@ -108,11 +128,12 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 		} else {
 			glog.Infof("Success %s: %s", target, string(out))
 		}
+		h.outputhandler.AddOutput(head, "TARGET: %s\n-------\n%v\n-------\n%v\n-------\n", target, string(out), err)
 	}
 	return nil
 }
 
-func (h *handler) OnPingEvent(event *github.PingEvent) error {
+func (h *eventHandler) OnPingEvent(event *github.PingEvent) error {
 	glog.Infof("Received ping event")
 	return nil
 }
