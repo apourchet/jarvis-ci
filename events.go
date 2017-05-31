@@ -37,9 +37,7 @@ func (h *handler) OnPushEvent(event *github.PushEvent) error {
 		return err
 	}
 
-	head := *event.HeadCommit.ID
-	fullName := *event.Repo.FullName
-
+	head, fullName := *event.HeadCommit.ID, *event.Repo.FullName
 	if h.reponame != REPONAME_ANY && fullName != h.reponame {
 		return fmt.Errorf("Will not handle requests for this repository: %s", fullName)
 	}
