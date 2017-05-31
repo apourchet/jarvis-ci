@@ -62,7 +62,7 @@ func (r Runner) Run(program string, args ...string) ([]byte, error) {
 }
 
 func (r Runner) Cleanup() {
-	err := os.Remove(r.clonedir)
+	err := os.RemoveAll(r.clonedir)
 	if err != nil {
 		glog.Errorf("Failed to cleanup runner %v: %v", r, err)
 	}
