@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"sync"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -14,6 +15,7 @@ type OutputHandler interface {
 
 type outputHandler struct {
 	cache *lru.Cache
+	lock  *sync.Mutex
 }
 
 var (
@@ -33,10 +35,13 @@ func DefaultOutputHandler() *outputHandler {
 func NewOutputHandler(size int) *outputHandler {
 	handler := &outputHandler{}
 	handler.cache = lru.New(size)
+	handler.lock = &sync.Mutex{}
 	return handler
 }
 
 func (h *outputHandler) AddOutput(jobid string, format string, args ...interface{}) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
 	val, ok := h.cache.Get(jobid)
 	if !ok {
 		val = fmt.Sprintf(format, args...)
@@ -47,6 +52,8 @@ func (h *outputHandler) AddOutput(jobid string, format string, args ...interface
 }
 
 func (h *outputHandler) GetOutput(jobid string) string {
+	h.lock.Lock()
+	defer h.lock.Unlock()
 	val, ok := h.cache.Get(jobid)
 	if !ok {
 		return ""

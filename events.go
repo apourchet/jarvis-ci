@@ -92,10 +92,21 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 		return err
 	}
 
-	// Execute test command
-	out, err := runner.Run("make", "jarvis-ci-test")
-	glog.Infof("Test result: %v | %v", string(out), err)
-	h.outputhandler.AddOutput(head, "TARGET: jarvis-ci-test\n-------\n%v\n-------\n%v\n=======\n", string(out), err)
+	// Write the head of the output
+	h.outputhandler.AddOutput(head, "TARGET: jarvis-ci-test\n-------\n")
+
+	// Append to the output continuously
+	fn := func(line string) error {
+		h.outputhandler.AddOutput(head, line)
+		return nil
+	}
+	err = runner.WatchFn(fn, "make", "jarvis-ci-test")
+	if err != nil {
+		h.outputhandler.AddOutput(head, "-------\n%v", err)
+	}
+
+	// Append footer for main target
+	h.outputhandler.AddOutput(head, "=======\n")
 
 	// Handle the error now
 	if err != nil {
@@ -104,10 +115,9 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 		return nil
 	}
 
-	h.client.PostStatus(fullName, head, "success", head)
-
 	// Check if the ref is the master ref
 	if h.MasterRef != event.GetRef() {
+		h.client.PostStatus(fullName, head, "success", head)
 		return nil
 	}
 
@@ -121,14 +131,16 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 		}
 	}
 
+	// TODO: Watch those outputs too
 	for _, target := range targets {
+		h.outputhandler.AddOutput(head, "TARGET: %s\n-------", target)
 		out, err := runner.Run("make", target)
 		if err != nil {
 			glog.Infof("Failed %s: %s | %v", target, string(out), err)
 		} else {
 			glog.Infof("Success %s: %s", target, string(out))
 		}
-		h.outputhandler.AddOutput(head, "TARGET: %s\n-------\n%v\n-------\n%v\n-------\n", target, string(out), err)
+		h.outputhandler.AddOutput(head, "%v\n-------\n%v\n-------\n", string(out), err)
 	}
 	return nil
 }

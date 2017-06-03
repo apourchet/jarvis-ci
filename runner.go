@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -59,6 +60,74 @@ func (r Runner) Run(program string, args ...string) ([]byte, error) {
 	cmd := exec.Command(program, args...)
 	cmd.Dir = r.clonedir
 	return cmd.CombinedOutput()
+}
+
+type item struct {
+	output string
+	err    error
+}
+
+func (r Runner) Watch(program string, args ...string) (chan item, error) {
+	glog.Infof("Watching `%s %v`", program, args)
+
+	out := make(chan item, 0)
+	cmd := exec.Command(program, args...)
+	cmd.Dir = r.clonedir
+
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		close(out)
+		return out, err
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		close(out)
+		return out, err
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(cmdReader)
+		for scanner.Scan() {
+			if err := scanner.Err(); err != nil {
+				out <- item{"", err}
+				close(out)
+				return
+			}
+			out <- item{scanner.Text(), nil}
+		}
+	}()
+
+	go func() {
+		err = cmd.Wait()
+		if err != nil {
+			out <- item{"", err}
+		}
+		close(out)
+		return
+	}()
+
+	return out, nil
+}
+
+func (r Runner) WatchFn(fn func(string) error, program string, args ...string) error {
+	items, err := r.Watch(program, args...)
+	if err != nil {
+		return err
+	}
+
+	for item := range items {
+		if item.err != nil {
+			return item.err
+		}
+
+		err = fn(item.output)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r Runner) Cleanup() {
