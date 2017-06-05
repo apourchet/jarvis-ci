@@ -27,13 +27,16 @@ func NewGithubClient(token string, baseurl string) *GithubClient {
 	return &GithubClient{token, baseurl, client}
 }
 
-func (c *GithubClient) PostStatus(fullName, head, status string, jobid string) error {
+func (c *GithubClient) PostStatus(fullName, head, jobid string, status, target string) error {
 	// Create request
 	url := fmt.Sprintf("https://api.github.com/repos/%s/statuses/%s", fullName, head)
 
 	// Create the payload
-	data := map[string]string{"state": status, "context": "jarvis-ci", "description": "Jarvis-CI testing"}
+	data := map[string]string{}
+	data["context"] = "ci/jarvis-ci/" + target
+	data["state"] = status
 	data["target_url"] = c.baseurl + jobid
+	data["description"] = "Makefile target: " + target
 	dataString, _ := json.Marshal(data)
 
 	// Make the request

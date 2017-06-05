@@ -67,7 +67,7 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 	runner := NewRunner()
 	defer runner.Cleanup()
 
-	err := h.client.PostStatus(fullName, head, "pending", head)
+	err := h.client.PostStatus(fullName, head, head, "pending", "jarvis-ci-test")
 	if err != nil {
 		glog.Warningf("Failed to create pending status: %v", err)
 	}
@@ -80,20 +80,20 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 	err = runner.CloneRepo(cloneURL, event.GetRef())
 	if err != nil {
 		h.outputhandler.AddOutput(head, "Failed to clone repo: %v", err)
-		h.client.PostStatus(fullName, head, "failure", head)
+		h.client.PostStatus(fullName, head, head, "failure", "jarvis-ci-test")
 		return err
 	}
 
 	// Checkout head commit
 	err = runner.Checkout(head)
 	if err != nil {
-		h.client.PostStatus(fullName, head, "failure", head)
 		h.outputhandler.AddOutput(head, "Failed to checkout head: %v", err)
+		h.client.PostStatus(fullName, head, head, "failure", "jarvis-ci-test")
 		return err
 	}
 
 	// Write the head of the output
-	h.outputhandler.AddOutput(head, "TARGET: jarvis-ci-test\n-------\n")
+	h.outputhandler.AddOutput(head, "TARGET: jarvis-ci-test\n-------")
 
 	// Append to the output continuously
 	fn := func(line string) error {
@@ -110,14 +110,14 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 
 	// Handle the error now
 	if err != nil {
-		h.client.PostStatus(fullName, head, "failure", head)
+		h.client.PostStatus(fullName, head, head, "failure", "jarvis-ci-test")
 		glog.Infof("Failed jarvis-ci-test: %v", err)
 		return nil
 	}
 
 	// Check if the ref is the master ref
 	if h.MasterRef != event.GetRef() {
-		h.client.PostStatus(fullName, head, "success", head)
+		h.client.PostStatus(fullName, head, head, "success", "jarvis-ci-test")
 		return nil
 	}
 
@@ -137,10 +137,12 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 		out, err := runner.Run("make", target)
 		if err != nil {
 			glog.Infof("Failed %s: %s | %v", target, string(out), err)
+			h.client.PostStatus(fullName, head, head, "failure", target)
 		} else {
 			glog.Infof("Success %s: %s", target, string(out))
+			h.client.PostStatus(fullName, head, head, "success", target)
 		}
-		h.outputhandler.AddOutput(head, "%v\n-------\n%v\n-------\n", string(out), err)
+		h.outputhandler.AddOutput(head, "%v\n-------\n%v\n-------", string(out), err)
 	}
 	return nil
 }

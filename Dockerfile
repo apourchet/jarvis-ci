@@ -6,4 +6,5 @@ RUN CGO_ENABLED=0 go build -i -ldflags "-s" -o /jarvis-ci .
 FROM jpetazzo/dind:latest as runner
 RUN apt-get install -y make
 COPY --from=builder /jarvis-ci /jarvis-ci
+ENV IN_JARVIS true
 ENTRYPOINT ["wrapdocker", "/jarvis-ci"]

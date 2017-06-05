@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -42,11 +43,12 @@ func NewOutputHandler(size int) *outputHandler {
 func (h *outputHandler) AddOutput(jobid string, format string, args ...interface{}) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
+	prefix := fmt.Sprintf("[%s]", time.Now().String())
 	val, ok := h.cache.Get(jobid)
 	if !ok {
-		val = fmt.Sprintf(format, args...)
+		val = prefix + fmt.Sprintf(format, args...)
 	} else {
-		val = val.(string) + "\n" + fmt.Sprintf(format, args...)
+		val = val.(string) + "\n" + prefix + fmt.Sprintf(format, args...)
 	}
 	h.cache.Add(jobid, val)
 }
