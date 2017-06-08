@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
@@ -18,6 +20,7 @@ var (
 	BasePath      string
 	OutputURI     string
 	ServerPort    int
+	CleanPrefix   string
 )
 
 func init() {
@@ -26,11 +29,15 @@ func init() {
 	flag.StringVar(&BasePath, "b", "/jarvis-ci", "The root path of the webhooks Jarvis will make available to GitHub")
 	flag.StringVar(&OutputURI, "output-uri", "https://jarvisci.org/outputs/", "The base uri of a build output")
 	flag.IntVar(&ServerPort, "p", 8080, "The port that Jarvis should listen for webhooks on")
+	flag.StringVar(&CleanPrefix, "clean-prefix", "old", "The prefix of the docker images that jarvis can clean periodically")
 	flag.Set("logtostderr", "true")
 }
 
 func main() {
 	flag.Parse()
+
+	// Start the cleanup in background
+	go startCleanup()
 
 	// Read in the token
 	token, err := ioutil.ReadFile(TokenPath)
@@ -63,6 +70,17 @@ func main() {
 	http.HandleFunc(path.Join(BasePath, "/outputs")+"/", outputfunc(outputhandler))
 	err = http.ListenAndServe(fmt.Sprintf(":%d", ServerPort), nil)
 	glog.Fatalf("Error while serving: %v", err)
+}
+
+func startCleanup() {
+	go func() {
+		for {
+			glog.Infof("Cleaning docker images...")
+			out, err := exec.Command("/bin/bash", "/dockerclean.sh", CleanPrefix).CombinedOutput()
+			glog.Infof("Cleaned up docker images: \n%v\n---\n%v", string(out), err)
+			time.Sleep(30 * time.Minute)
+		}
+	}()
 }
 
 func outputfunc(outputhandler OutputHandler) http.HandlerFunc {

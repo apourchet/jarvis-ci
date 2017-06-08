@@ -43,7 +43,7 @@ func NewOutputHandler(size int) *outputHandler {
 func (h *outputHandler) AddOutput(jobid string, format string, args ...interface{}) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
-	prefix := fmt.Sprintf("[%s]", time.Now().String())
+	prefix := fmt.Sprintf("[%s]   ", time.Now().Format(time.RFC3339))
 	val, ok := h.cache.Get(jobid)
 	if !ok {
 		val = prefix + fmt.Sprintf(format, args...)
