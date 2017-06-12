@@ -87,24 +87,15 @@ func (r Runner) Watch(program string, args ...string) (chan item, error) {
 	}
 
 	go func() {
+		defer close(out)
 		scanner := bufio.NewScanner(cmdReader)
 		for scanner.Scan() {
 			if err := scanner.Err(); err != nil {
 				out <- item{"", err}
-				close(out)
 				return
 			}
 			out <- item{scanner.Text(), nil}
 		}
-	}()
-
-	go func() {
-		err = cmd.Wait()
-		if err != nil {
-			out <- item{"", err}
-		}
-		close(out)
-		return
 	}()
 
 	return out, nil
