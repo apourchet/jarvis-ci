@@ -1,5 +1,7 @@
 #! /bin/bash
 
+
+echo "Cleaning docker images: $1 | $2"
 IFS=$'\n'
 images=`docker images -a --format '{{.Repository}},{{.ID}},{{.CreatedSince}}' | grep "none\|$1"`
 for i in $images; do
@@ -10,7 +12,7 @@ for i in $images; do
     if [ "$unit" == "days" ] || [ "$unit" == "day" ]; then
         echo "REMOVE" $image":" $time
         docker rmi -f $image
-    elif [ "$unit" == "hours" ] && [ "$number" -ge "12" ]; then
+    elif [ "$unit" == "hours" ] && [ "$number" -ge "$2" ]; then
         echo "REMOVE" $image":" $time
         docker rmi -f $image
     fi

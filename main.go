@@ -20,7 +20,9 @@ var (
 	BasePath      string
 	OutputURI     string
 	ServerPort    int
-	CleanPrefix   string
+
+	CleanPrefix        string
+	CleanThresholdHour string
 )
 
 func init() {
@@ -30,6 +32,7 @@ func init() {
 	flag.StringVar(&OutputURI, "output-uri", "https://jarvisci.org/outputs/", "The base uri of a build output")
 	flag.IntVar(&ServerPort, "p", 8080, "The port that Jarvis should listen for webhooks on")
 	flag.StringVar(&CleanPrefix, "clean-prefix", "old", "The prefix of the docker images that jarvis can clean periodically")
+	flag.StringVar(&CleanThresholdHour, "clean-threshold", "2", "The age of a docker image to be cleaned up")
 	flag.Set("logtostderr", "true")
 }
 
@@ -76,7 +79,7 @@ func startCleanup() {
 	go func() {
 		for {
 			glog.Infof("Cleaning docker images...")
-			out, err := exec.Command("/bin/bash", "/dockerclean.sh", CleanPrefix).CombinedOutput()
+			out, err := exec.Command("/bin/bash", "/dockerclean.sh", CleanPrefix, CleanThresholdHour).CombinedOutput()
 			glog.Infof("Cleaned up docker images: \n%v\n---\n%v", string(out), err)
 			time.Sleep(30 * time.Minute)
 		}
