@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/golang/glog"
 )
@@ -86,8 +87,10 @@ func (r Runner) Watch(program string, args ...string) (chan item, error) {
 		return out, err
 	}
 
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 	go func() {
-		defer close(out)
+		defer wg.Done()
 		scanner := bufio.NewScanner(cmdReader)
 		for scanner.Scan() {
 			if err := scanner.Err(); err != nil {
@@ -96,6 +99,19 @@ func (r Runner) Watch(program string, args ...string) (chan item, error) {
 			}
 			out <- item{scanner.Text(), nil}
 		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		err = cmd.Wait()
+		if err != nil {
+			out <- item{"", err}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(out)
 	}()
 
 	return out, nil
