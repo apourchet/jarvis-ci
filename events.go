@@ -137,7 +137,8 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 		h.outputhandler.AddOutput(head, "TARGET: %s\n-------", target)
 		err = runner.WatchFn(fn, "make", target)
 		if err != nil {
-			glog.Infof("Failed %s: %s | %v", target, err)
+			glog.Infof("Failed %s: %v", target, err)
+			h.outputhandler.AddOutput(head, "ERROR: %v", err)
 			h.client.PostStatus(fullName, head, head, "failure", target)
 		} else {
 			glog.Infof("Success %s", target)
