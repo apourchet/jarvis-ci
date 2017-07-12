@@ -129,7 +129,7 @@ func (h *eventHandler) OnPushEvent(event *github.PushEvent) error {
 	for _, line := range strings.Split(msg, "\n") {
 		if strings.HasPrefix(line, "JARVIS: ") {
 			targetstring := strings.TrimPrefix(line, "JARVIS: ")
-			targets = strings.Split(targetstring, " ")
+			targets = append(targets, strings.Split(targetstring, " ")...)
 		}
 	}
 
