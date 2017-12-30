@@ -1,6 +1,5 @@
 #! /bin/bash
 
-
 echo "Cleaning docker images: $1 | $2"
 IFS=$'\n'
 images=`docker images -a --format '{{.Repository}},{{.ID}},{{.CreatedSince}}' | grep "none\|$1"`
